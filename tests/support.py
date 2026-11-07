@@ -125,6 +125,17 @@ class FakePipeWire:
                 r["device"] = 2 if surround else 1
                 r["index"] = 2 if surround else 1
 
+    def add_optical_out(self, node_id=997, running=False):
+        """The separate optical sink node from the driver's ae9-optical-out.conf."""
+        props = {"node.name": "alsa_output.ae9_optical", "node.description": "Sound Blaster AE-9 Optical",
+                 "media.class": "Audio/Sink", "api.alsa.path": "hw:AE9,3", "priority.session": 2000}
+        state = "running" if running else "suspended"
+        params = {"Format": [{"rate": 48000, "format": "S32LE"}]} if running else {}
+        o = {"id": node_id, "type": "PipeWire:Interface:Node",
+             "info": {"state": state, "props": props, "params": params}}
+        self.objects.insert(len(self.objects), o)
+        return o
+
     def add_optical_in(self, first=True, alsa_props=False):
         """The source node from the driver's ae9-optical-in.conf. alsa_props:
         the card props an opened node carries (they'd match the mic's)."""

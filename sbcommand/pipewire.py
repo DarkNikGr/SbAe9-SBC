@@ -77,6 +77,7 @@ class Nodes:
         objs = dump() if objs is None else objs
         self.sink = self.source = self.device = None
         self.optical_in = self.what_u_hear = self.rear_rca = None
+        self.optical_out = None
         self.default_sink = self.default_source = None
         for o in objs:
             info = o.get("info") or {}
@@ -91,6 +92,15 @@ class Nodes:
                         self.default_sink = name
                     elif m.get("key") == "default.audio.source":
                         self.default_source = name
+            # The separate optical output is its own sink (a PipeWire adapter
+            # on hw:AE9,3); keep it apart from the main AE-9 sink.  is_ae9()
+            # matches its name too, so handle it before the AE-9 match.
+            if mc == "Audio/Sink" and props.get("node.name") == "alsa_output.ae9_optical":
+                node = {"id": o["id"], "name": props.get("node.name"), "state": info.get("state"),
+                        "description": props.get("node.description"), "props": props,
+                        "params": info.get("params") or {}}
+                self.optical_out = self.optical_out or node
+                continue
             if not _is_ae9(props):
                 continue
             extra = _extra_input(props) if mc == "Audio/Source" else None
@@ -109,6 +119,18 @@ class Nodes:
     @property
     def sink_is_default(self):
         return bool(self.sink and self.sink["name"] == self.default_sink)
+
+    @property
+    def optical_out_is_default(self):
+        return bool(self.optical_out and self.optical_out["name"] == self.default_sink)
+
+    def optical_out_format(self):
+        """(rate, format) the separate optical sink is running at, or None."""
+        if not self.optical_out:
+            return None
+        for f in self.optical_out["params"].get("Format") or []:
+            return f.get("rate"), f.get("format")
+        return None
 
     @property
     def source_is_default(self):
