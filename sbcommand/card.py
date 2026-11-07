@@ -35,7 +35,7 @@ ALIASES = {
     HU_PHONES: ("Head Unit Phones Plugged",),
     HU_MIC: ("Head Unit Line In Plugged",),
 }
-OPTICAL_OUT = "Optical Out Playback Switch"   # newer drivers: optical plays what the main output plays
+OPTICAL_OUT = "Optical Out Playback Switch"   # separate optical playback PCM (newer drivers)
 BIT_DEPTH = "PCM Bit Depth"
 CAP_BIT_DEPTH = "Capture Bit Depth"       # 24-bit / 32-bit recording (newer drivers), next open             # 24-bit / 32-bit (newer drivers), next stream open
 SPEAKER_CFG = "Speaker Config"         # 2.0 / 2.1

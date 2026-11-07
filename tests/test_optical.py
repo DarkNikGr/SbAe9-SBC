@@ -44,29 +44,28 @@ class OpticalOutTest(S.AppTestCase):
         pg.refresh()
         self.assertTrue(pg.optical.isChecked())
 
-    def test_tells_you_when_it_is_silent(self):
+    def test_on_off_and_quality(self):
         pg = self.digital()
-        self.mixer.external(C.BIT_DEPTH, "24-bit")
-        S.PW.stream = (192000, 2)
-        S.process(20)
+        self.assertEqual(pg.optical_lbl.text(), "On")
+        self.assertEqual(pg.optical_quality.text(), "Nothing playing")
+        self.assertIn("Separate output", pg.optical_note.text())
+        self.assertEqual(pg.optical_dev.text(), "Optical output not found in PipeWire")
+        S.PW.add_optical_out(running=True)
+        self.snapshot()
         pg.refresh()
-        self.assertEqual(pg.optical_lbl.text(), "On — same as the main output")
-        self.assertEqual(pg.optical_quality.text(), "192 kHz · 24-bit · stereo")
-        self.mixer.external(C.BIT_DEPTH, "32-bit")
-        S.PW.stream = (384000, 2)
-        S.process(20)
-        pg.refresh()
-        self.assertEqual(pg.optical_lbl.text(), "On — silent right now")
-        self.assertIn("32-bit, 384 kHz", pg.optical_note.text())
-        S.PW.stream = (48000, 6)
-        self.mixer.external(C.BIT_DEPTH, "24-bit")
-        S.process(20)
-        pg.refresh()
-        self.assertIn("5.1 stream", pg.optical_note.text())
-        self.mixer.external(C.OPTICAL_OUT, False)      # off: no warning
+        self.assertEqual(pg.optical_dev.text(), "Sound Blaster AE-9 Optical")
+        self.assertEqual(pg.optical_quality.text(), "48 kHz · 24-bit · stereo")
+        self.mixer.external(C.OPTICAL_OUT, False)      # off
         S.process(20)
         pg.refresh()
         self.assertEqual(pg.optical_lbl.text(), "Off")
+        self.assertIn("Off", pg.optical_note.text())
+
+    def test_optical_sink_is_separate(self):
+        S.PW.add_optical_out()
+        n = pipewire.Nodes(S.PW.objects)
+        self.assertEqual(n.optical_out["name"], "alsa_output.ae9_optical")
+        self.assertNotEqual(n.sink["name"], "alsa_output.ae9_optical")
 
 
 class OtherInputTest(S.AppTestCase):

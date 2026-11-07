@@ -688,10 +688,20 @@ class PlaybackPage(Page):
         self.optical_quality = label("", "bigValue")
         ob.addWidget(self.optical_quality)
         ob.addWidget(label(
-            "Optical plays the same audio as the main output, so its quality is set on the "
-            "Speakers/Headphones tab: stereo, 24-bit, 48–192 kHz reaches the card's Optical out "
-            "bit for bit. It's taken before the DSP, so SBX and the EQ aren't on it, and the "
-            "volume knob doesn't change it: set the level on your receiver.", "hint", wrap=True))
+            "A separate playback output: stereo, 24-bit, 44.1–192 kHz. It bypasses the DSP, "
+            "so SBX and the EQ aren't on it, and the volume knob doesn't change it — app "
+            "volume does. Set the level on your receiver.", "hint", wrap=True))
+        ob.addSpacing(6)
+        ob.addWidget(label("Playback device", "sectionTitle"))
+        orow2 = QHBoxLayout()
+        self.optical_dev = label("—", "bigValue")
+        self.optical_default = QPushButton("Set Default")
+        self.optical_default.setMinimumWidth(150)
+        self.optical_default.clicked.connect(self._make_optical_default)
+        orow2.addWidget(self.optical_dev)
+        orow2.addStretch()
+        orow2.addWidget(self.optical_default)
+        ob.addLayout(orow2)
         self.optical_box.setVisible(False)
         digital.addWidget(self.optical_box)
         self.optical_missing = label("Optical out and in need driver v0.8.0 or newer.", "muted", wrap=True)
@@ -791,6 +801,12 @@ class PlaybackPage(Page):
         n = self.ctx.pw.nodes
         if n.sink:
             pipewire.set_default(n.sink["id"])
+            self.ctx.pw.refresh()
+
+    def _make_optical_default(self):
+        n = self.ctx.pw.nodes
+        if n.optical_out:
+            pipewire.set_default(n.optical_out["id"])
             self.ctx.pw.refresh()
 
     def _test(self):
@@ -1017,46 +1033,32 @@ class PlaybackPage(Page):
         self.hp_prof_note.setText(note)
         self.hp_prof_note.setVisible(bool(note))
 
-    def optical_silent_because(self, layout):
-        """Why optical out is silent right now, though switched on: the
-        driver feeds it only from a stereo, 24-bit stream at up to 192 kHz."""
-        why = []
-        if self.card.has(C.BIT_DEPTH) and (self.card.get_item(C.BIT_DEPTH) or "").startswith("32"):
-            why.append("32-bit")
-        live = pipewire.card_stream()
-        rate = live[0] if live else pipewire.current_force_rate()
-        if rate and rate > 192000:
-            why.append(f"{rate / 1000:g} kHz")
-        if layout == "surround" or (live and live[1] > 2):
-            why.append("5.1 stream")
-        return why
-
     def _refresh_optical(self, layout):
         has = self.card.has(C.OPTICAL_OUT)
         self.optical_box.setVisible(has)
         self.optical_missing.setVisible(not has)
         if not has:
             return
-        live = pipewire.card_stream()
-        bits = (self.card.get_item(C.BIT_DEPTH) or "") if self.card.has(C.BIT_DEPTH) else ""
-        if live:
-            ch = {1: "mono", 2: "stereo", 6: "5.1"}.get(live[1], f"{live[1]} ch")
-            self.optical_quality.setText(" · ".join(x for x in (f"{live[0] / 1000:g} kHz", bits, ch) if x))
-        else:
-            self.optical_quality.setText("Nothing playing")
+        n = self.ctx.pw.nodes
         on = bool(self.card.get(C.OPTICAL_OUT))
         self.optical.setCheckedSilently(on)
-        why = self.optical_silent_because(layout) if on else []
-        if why:
-            self.optical_lbl.setText("On — silent right now")
-            self.optical_note.setText(f"Silent with {', '.join(why)}: optical plays stereo, "
-                                      "24-bit, up to 192 kHz.")
-            self.optical_note.setStyleSheet(f"color:{T.DANGER};")
+        self.optical_lbl.setText("On" if on else "Off")
+        fmt = n.optical_out_format()
+        if n.optical_out and n.optical_out.get("state") == "running" and fmt:
+            rate, _ = fmt
+            self.optical_quality.setText(f"{rate / 1000:g} kHz · 24-bit · stereo")
         else:
-            self.optical_lbl.setText("On — same as the main output" if on else "Off")
-            self.optical_note.setText("Plays stereo, 24-bit, up to 192 kHz. No SBX or EQ; "
-                                      "your receiver sets the volume.")
-            self.optical_note.setStyleSheet("")
+            self.optical_quality.setText("Nothing playing")
+        self.optical_dev.setText("Sound Blaster AE-9 Optical" if n.optical_out
+                                 else "Optical output not found in PipeWire")
+        self.optical_default.setEnabled(bool(n.optical_out) and not n.optical_out_is_default)
+        self.optical_default.setText("Default device" if n.optical_out_is_default else "Set Default")
+        if on:
+            self.optical_note.setText("Separate output: stereo, 24-bit, 44.1–192 kHz. "
+                                      "No SBX/EQ; app volume applies, the knob doesn't.")
+        else:
+            self.optical_note.setText("Off: the optical output is silent.")
+        self.optical_note.setStyleSheet("")
 
 
 DIRECT_TIP = ("Direct Mode sends audio straight to the ESS DAC at the stream's own sample rate "
@@ -1067,12 +1069,11 @@ DIRECT_TIP = ("Direct Mode sends audio straight to the ESS DAC at the stream's o
 DIRECT_PAUSE_TIP = ("\n\nSwitching Direct Mode on during playback goes silent until the stream "
                     "restarts (pause and play), same as on Windows.")
 
-OPTICAL_TIP = ("Optical (S/PDIF) out plays what the main output plays, so you can feed a "
-               "receiver or another device alongside your speakers.\n\n"
-               "It only plays a stereo stream at 24-bit, up to 192 kHz: with Bit Depth at "
-               "32-bit, at 384 kHz or on a 5.1 stream it stays silent.\n\n"
-               "It's taken before the DSP, so SBX and the EQ aren't on it, and the volume "
-               "knob doesn't change it (app volume does): set the level on the receiver.")
+OPTICAL_TIP = ("Optical (S/PDIF) out is a separate playback output on its own PCM. Pick it "
+               "as the playback device to send audio to a receiver or another device.\n\n"
+               "It carries a stereo, 24-bit stream at 44.1–192 kHz, straight from the source: "
+               "no SBX or EQ, and the card's Master volume (and knob) doesn't change it — app "
+               "volume does. Set the level on the receiver.")
 
 SURROUND_CFGS = ("4.0", "4.1", "5.1")
 MIC_NAME = "AE-9 Head Unit Mic / Aux"
