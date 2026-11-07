@@ -93,7 +93,7 @@ class Nodes:
                     elif m.get("key") == "default.audio.source":
                         self.default_source = name
             # The separate optical output is its own sink (a PipeWire adapter
-            # on hw:AE9,3); keep it apart from the main AE-9 sink.  is_ae9()
+            # on hw:AE9,4); keep it apart from the main AE-9 sink.  is_ae9()
             # matches its name too, so handle it before the AE-9 match.
             if mc == "Audio/Sink" and props.get("node.name") == "alsa_output.ae9_optical":
                 node = {"id": o["id"], "name": props.get("node.name"), "state": info.get("state"),
