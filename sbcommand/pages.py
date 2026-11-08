@@ -698,15 +698,14 @@ class PlaybackPage(Page):
         orow_rate.addWidget(label("Sample rate", "sectionTitle"))
         self.optical_rate = QComboBox()
         self.optical_rate.setMinimumWidth(130)
-        self.optical_rate.addItem("Automatic", 0)
         for r in OPTICAL_RATES:
             self.optical_rate.addItem(f"{r / 1000:g} kHz", r)
         self.optical_rate.activated.connect(self._pick_optical_rate)
         orow_rate.addWidget(self.optical_rate)
         orow_rate.addStretch()
         ob.addLayout(orow_rate)
-        # bit depth: 24-bit is what S/PDIF carries and what the card plays;
-        # Automatic lets PipeWire pick, 16-bit is there for other converters
+        # bit depth: 24-bit is what S/PDIF carries and what the card plays
+        # (16-bit opens the PCM at 16-bit, for everything)
         orow_depth = QHBoxLayout()
         orow_depth.addWidget(label("Bit depth", "sectionTitle"))
         self.optical_depth = QComboBox()
@@ -845,16 +844,13 @@ class PlaybackPage(Page):
         """The optical PCM's own rate, from its PipeWire config (hw:AE9,4)."""
         self.optical_conf = pipewire.input_conf(4)
         cur = pipewire.input_conf_rate(self.optical_conf) if self.optical_conf else None
-        i = self.optical_rate.findData(cur or 0)
+        i = self.optical_rate.findData(cur or 48000)
         self.optical_rate.setCurrentIndex(i if i >= 0 else 0)
         self.optical_rate.setEnabled(self.optical_conf is not None)
         self.optical_rate.setToolTip(
-            "Automatic follows the stream playing to the optical output, so a 96 kHz "
-            "track reaches the receiver at 96 kHz. The card has one clock, so the whole "
-            "card moves with it while it plays (unless Playback → Quality is set to a "
-            "fixed rate). A fixed rate here opens the optical PCM at that rate on its own: "
-            "the main output keeps its rate, and other streams are resampled."
-            if self.optical_conf else
+            "The optical PCM's own rate, set on that PCM alone: the main output keeps "
+            "its own rate and the two play at the same time (streams at other rates are "
+            "resampled for the optical)." if self.optical_conf else
             "No PipeWire config for hw:AE9,4: install the driver's ae9-optical-out.conf")
 
     def _pick_optical_depth(self, i):

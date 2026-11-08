@@ -379,40 +379,6 @@ def set_quantum(q):
     _run("pw-metadata", "-n", "settings", "0", "clock.force-quantum", str(q))
 
 
-def force_rate(rate):
-    """Set PipeWire's graph rate (0 = automatic). One clock for the whole graph."""
-    return _run("pw-metadata", "-n", "settings", "0", "clock.force-rate", str(int(rate)))
-
-
-def streams_into(node_name):
-    """The rates of the app streams playing to that sink, from pw-dump."""
-    objs = dump()
-    sink = None
-    rates = {}
-    for o in objs:
-        if not str(o.get("type", "")).endswith("Node"):
-            continue
-        info = o.get("info") or {}
-        props = info.get("props") or {}
-        if props.get("node.name") == node_name:
-            sink = o.get("id")
-        elif props.get("media.class") == "Stream/Output/Audio":
-            for f in (info.get("params") or {}).get("Format") or []:
-                if f.get("rate"):
-                    rates[o.get("id")] = int(f["rate"])
-                break
-    if sink is None:
-        return []
-    out = []
-    for o in objs:
-        if not str(o.get("type", "")).endswith("Link"):
-            continue
-        info = o.get("info") or {}
-        if info.get("input-node-id") == sink and rates.get(info.get("output-node-id")):
-            out.append(rates[info["output-node-id"]])
-    return out
-
-
 def set_rate_mode(mode, rates=None, quantum=0):
     """mode 0 = follow the source, else force that rate (with its quantum).
 

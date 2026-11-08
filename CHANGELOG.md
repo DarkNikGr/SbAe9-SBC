@@ -8,15 +8,11 @@ driver ([SbAe9-Drv](https://github.com/3xHelix/SbAe9-Drv)).
 ### Added
 
 - **Optical output sample rate** (Playback → Digital): the separate optical
-  PCM can run at its own rate, `Automatic` (follows the card) or a fixed
-  44.1/48/88.2/96/176.4/192 kHz, set as `audio.rate` in its PipeWire config
-  (`hw:AE9,4`, `ae9-optical-out.conf`). It's independent of the main output:
-  the two can play at different rates at the same time, and streams at other
-  rates are resampled for the optical. Changing it restarts PipeWire, so
-  audio drops for a moment.
-  Automatic follows the stream playing to the optical output: the app moves
-  PipeWire's clock to that stream's rate while it plays (the card's whole
-  graph moves, since PipeWire has one clock) and gives it back when it stops.
+  PCM has its own rate, 44.1/48/88.2/96/176.4/192 kHz, set as `audio.rate`
+  in its PipeWire config (`hw:AE9,4`, `ae9-optical-out.conf`). It's
+  independent of the main output: the two play at different rates at the
+  same time, and streams at other rates are resampled for the optical.
+  Changing it restarts PipeWire, so audio drops for a moment.
 - **Optical output bit depth** (Digital tab): 24-bit or 16-bit, as
   `audio.format` in the same config. 24-bit is what the card plays and what
   S/PDIF carries at most; 16-bit opens the PCM at 16-bit for everything
