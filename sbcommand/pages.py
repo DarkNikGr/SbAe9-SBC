@@ -850,9 +850,11 @@ class PlaybackPage(Page):
         self.optical_rate.setCurrentIndex(i if i >= 0 else 0)
         self.optical_rate.setEnabled(self.optical_conf is not None)
         self.optical_rate.setToolTip(
-            "Automatic follows the card's rate (Playback → Quality). A fixed rate opens "
-            "the optical output at that rate, on its own PCM: the main output keeps its "
-            "rate, and streams at other rates are resampled for the optical."
+            "Automatic follows the stream playing to the optical output, so a 96 kHz "
+            "track reaches the receiver at 96 kHz. The card has one clock, so the whole "
+            "card moves with it while it plays (unless Playback → Quality is set to a "
+            "fixed rate). A fixed rate here opens the optical PCM at that rate on its own: "
+            "the main output keeps its rate, and other streams are resampled."
             if self.optical_conf else
             "No PipeWire config for hw:AE9,4: install the driver's ae9-optical-out.conf")
 
@@ -1160,7 +1162,7 @@ OPTICAL_TIP = ("Optical (S/PDIF) out is a separate playback output on its own PC
 
 SURROUND_CFGS = ("4.0", "4.1", "5.1")
 # the optical PCM's rates (stereo up to 192 kHz; 384 kHz is the main output's only)
-OPTICAL_RATES = (44100, 48000, 88200, 96000, 176400, 192000)
+OPTICAL_RATES = pipewire.OPTICAL_RATES
 MIC_NAME = "AE-9 Head Unit Mic / Aux"
 
 

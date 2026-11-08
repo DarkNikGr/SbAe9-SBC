@@ -24,6 +24,7 @@ from . import config
 ALL_RATES = [44100, 48000, 88200, 96000, 176400, 192000, 384000]   # every rate the AE-9 driver can play
 RATES = [48000, 96000, 192000, 384000]   # without 44.1/88.2 (pcm_rates=1, drivers before 0.9.4)
 CD_RATES = (44100, 88200, 176400)        # stereo, Direct Mode only (pcm_rates=2; 176.4 with pcm_176k4)
+OPTICAL_RATES = (44100, 48000, 88200, 96000, 176400, 192000)   # the optical PCM (stereo, up to 192 kHz)
 SURROUND_RATES = (48000, 96000, 192000)  # what 5.1 can play at most
 RATES_CONF = os.path.expanduser("~/.config/pipewire/pipewire.conf.d/90-sbae9-sbc-rates.conf")
 # The head unit mic input's own sample rate: a WirePlumber rule on that one source
@@ -376,6 +377,40 @@ def quantum_for(rate, pick=0):
 
 def set_quantum(q):
     _run("pw-metadata", "-n", "settings", "0", "clock.force-quantum", str(q))
+
+
+def force_rate(rate):
+    """Set PipeWire's graph rate (0 = automatic). One clock for the whole graph."""
+    return _run("pw-metadata", "-n", "settings", "0", "clock.force-rate", str(int(rate)))
+
+
+def streams_into(node_name):
+    """The rates of the app streams playing to that sink, from pw-dump."""
+    objs = dump()
+    sink = None
+    rates = {}
+    for o in objs:
+        if not str(o.get("type", "")).endswith("Node"):
+            continue
+        info = o.get("info") or {}
+        props = info.get("props") or {}
+        if props.get("node.name") == node_name:
+            sink = o.get("id")
+        elif props.get("media.class") == "Stream/Output/Audio":
+            for f in (info.get("params") or {}).get("Format") or []:
+                if f.get("rate"):
+                    rates[o.get("id")] = int(f["rate"])
+                break
+    if sink is None:
+        return []
+    out = []
+    for o in objs:
+        if not str(o.get("type", "")).endswith("Link"):
+            continue
+        info = o.get("info") or {}
+        if info.get("input-node-id") == sink and rates.get(info.get("output-node-id")):
+            out.append(rates[info["output-node-id"]])
+    return out
 
 
 def set_rate_mode(mode, rates=None, quantum=0):

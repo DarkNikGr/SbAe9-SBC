@@ -358,3 +358,63 @@ class OpticalOutRateTest(S.AppTestCase):
         self.assertNotIn("audio.format", text)
         self.assertEqual(pg.optical_depth.currentData(), None)
         self.assertIn("audio.rate       = 96000", text)                # the rate stays
+
+
+OPT_CONF_AUTO = OPT_CONF.replace("            audio.rate       = 96000\n", "")
+
+
+class OpticalAutoRateTest(S.AppTestCase):
+    """Automatic optical rate follows the stream playing to the optical output.
+
+    PipeWire has one clock, so the app moves it to the stream's rate (only while
+    the card's own rate is Automatic too) and gives it back when it stops."""
+
+    def setUp(self):
+        super().setUp()
+        self.mixer.add_bool(C.OPTICAL_OUT, True)
+        S.PW.add_optical_out(running=True)
+        os.makedirs(pipewire.PW_CONF_DIR, exist_ok=True)
+        self.path = os.path.join(pipewire.PW_CONF_DIR, "ae9-optical-out.conf")
+        with open(self.path, "w") as f:
+            f.write(OPT_CONF_AUTO)
+        self.addCleanup(os.remove, self.path)
+        self.page(pages.PlaybackPage).show_tab(2)
+
+    def play(self, rate=96000):
+        """An app stream playing to the optical sink (a node and its link)."""
+        pw = S.PW
+        sink = next(o for o in pw.objects
+                    if (o.get("info") or {}).get("props", {}).get("node.name") == "alsa_output.ae9_optical")
+        stream = {"id": 1500, "type": "PipeWire:Interface:Node",
+                  "info": {"state": "running",
+                           "props": {"node.name": "test-stream", "media.class": "Stream/Output/Audio",
+                                     "application.name": "Tester", "media.name": "song"},
+                           "params": {"Format": [{"mediaType": "audio", "mediaSubtype": "raw",
+                                                  "format": "S32LE", "rate": rate, "channels": 2,
+                                                  "position": ["FL", "FR"]}]}}}
+        link = {"id": 1501, "type": "PipeWire:Interface:Link",
+                "info": {"input-node-id": sink["id"], "output-node-id": 1500}}
+        pw.objects.extend([stream, link])
+        return stream, link
+
+    def stop(self, pair):
+        for o in pair:
+            S.PW.objects.remove(o)
+
+    def test_follows_the_stream_and_gives_the_clock_back(self):
+        self.assertEqual(self.rate()[0], 0)
+        pair = self.play(96000)
+        self.snapshot()
+        S.process(50)
+        self.assertEqual(self.rate()[0], 96000)
+        self.stop(pair)
+        self.snapshot()
+        S.process(50)
+        self.assertEqual(self.rate()[0], 0)
+
+    def test_leaves_a_forced_card_rate_alone(self):
+        self.ctx.settings["rate_mode"] = 48000
+        self.play(96000)
+        self.snapshot()
+        S.process(50)
+        self.assertEqual(self.rate()[0], 0)

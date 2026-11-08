@@ -44,6 +44,9 @@ class Context(QObject):
         self.card.changed.connect(self._on_card_rate)
         self.card.connection_changed.connect(self._on_card_rate)
         self.pw.updated.connect(self._on_pw_rate)
+        # Automatic optical rate: match the graph to the stream playing there
+        self._optical_followed = None       # the rate we forced for it, or None
+        self.pw.updated.connect(self._follow_optical)
 
     def rate_set(self):
         """The rates the card plays right now (Direct Mode, 5.1, driver options)."""
@@ -266,6 +269,35 @@ class Context(QObject):
 
     def _on_pw_rate(self, *_):
         self.apply_rate()
+
+    # -- Automatic optical rate ------------------------------------------
+
+    def _optical_rate_is_auto(self):
+        """True when the optical output's rate is Automatic (no audio.rate)."""
+        path = pipewire.input_conf(4)
+        return bool(path) and pipewire.input_conf_rate(path) is None
+
+    def _follow_optical(self, *_):
+        """Optical rate Automatic: the optical PCM is separate, but PipeWire
+        has one clock, so follow the rate of the stream playing to it instead
+        of resampling it (only while the card's own rate is Automatic too).
+        When that stream stops, give the clock back."""
+        if self.settings["rate_mode"] not in (0, None) or not self._optical_rate_is_auto():
+            return self._hand_back_optical_rate()
+        rates = set(pipewire.streams_into("alsa_output.ae9_optical"))
+        if len(rates) == 1:
+            rate = rates.pop()
+            if rate in pipewire.OPTICAL_RATES and pipewire.current_force_rate() != rate:
+                if pipewire.force_rate(rate) is not None:
+                    self._optical_followed = rate
+        elif not rates:
+            self._hand_back_optical_rate()
+
+    def _hand_back_optical_rate(self):
+        if self._optical_followed is None:
+            return
+        pipewire.force_rate(self.settings["rate_mode"] or 0)
+        self._optical_followed = None
 
 
 NAV = [
