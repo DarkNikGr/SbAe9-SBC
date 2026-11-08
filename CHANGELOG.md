@@ -17,10 +17,10 @@ driver ([SbAe9-Drv](https://github.com/3xHelix/SbAe9-Drv)).
   Automatic follows the stream playing to the optical output: the app moves
   PipeWire's clock to that stream's rate while it plays (the card's whole
   graph moves, since PipeWire has one clock) and gives it back when it stops.
-- **Optical output bit depth** (Digital tab): Automatic, 24-bit or 16-bit,
-  as `audio.format` in the same config. 24-bit is what the card plays and
-  what S/PDIF carries at most; this card's S/PDIF converter has no working
-  16-bit mode (measured silent), so 16-bit is only for other setups.
+- **Optical output bit depth** (Digital tab): 24-bit or 16-bit, as
+  `audio.format` in the same config. 24-bit is what the card plays and what
+  S/PDIF carries at most; 16-bit opens the PCM at 16-bit for everything
+  (16-bit sources sound the same at 24-bit: widened, not changed).
 
 ## 0.13.0 (2026-11-07)
 

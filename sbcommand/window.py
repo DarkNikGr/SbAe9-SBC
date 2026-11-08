@@ -229,7 +229,7 @@ class Context(QObject):
             n = self.pw.nodes
             return getattr(n, key) is not None and self._sink_ok()
 
-        label = "automatic" if not fmt else ("16-bit" if fmt == "S16LE" else "24-bit")
+        label = "16-bit" if fmt == "S16LE" else "24-bit"
         self.applier.submit(Change(
             key + "_format", f"{title} bit depth: {label}",
             lambda: pipewire.set_input_conf_format(path, fmt), 8000, settled,

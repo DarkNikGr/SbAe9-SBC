@@ -332,12 +332,17 @@ class OpticalOutRateTest(S.AppTestCase):
 
     def test_depth_shows_the_configs_format(self):
         pg = self.digital()
-        self.assertEqual(pg.optical_depth.itemText(0), "Automatic")
         self.assertEqual([pg.optical_depth.itemData(i) for i in range(pg.optical_depth.count())],
-                         [None, "S32LE", "S16LE"])
+                         ["S32LE", "S16LE"])
         self.assertEqual(pg.optical_depth.currentData(), "S32LE")      # 24-bit
         self.assertTrue(pg.optical_depth.isEnabled())
         self.assertIn("16-bit", pg.optical_depth.toolTip())
+
+    def test_a_config_without_a_format_reads_24bit(self):
+        with open(self.path, "w") as f:
+            f.write(OPT_CONF.replace('            audio.format     = "S32LE"\n', ""))
+        pg = self.digital()
+        self.assertEqual(pg.optical_depth.currentData(), "S32LE")
 
     def test_16bit_writes_s16le(self):
         pg = self.digital()
@@ -350,14 +355,7 @@ class OpticalOutRateTest(S.AppTestCase):
         self.assertIn(("systemctl", "--user", "restart", "pipewire"), S.PW.calls)
         self.assertEqual(pg.optical_depth.currentData(), "S16LE")
 
-    def test_automatic_depth_removes_the_line(self):
-        pg = self.digital()
-        self.depth(pg, None)
-        with open(self.path) as f:
-            text = f.read()
-        self.assertNotIn("audio.format", text)
-        self.assertEqual(pg.optical_depth.currentData(), None)
-        self.assertIn("audio.rate       = 96000", text)                # the rate stays
+
 
 
 OPT_CONF_AUTO = OPT_CONF.replace("            audio.rate       = 96000\n", "")

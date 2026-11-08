@@ -711,7 +711,6 @@ class PlaybackPage(Page):
         orow_depth.addWidget(label("Bit depth", "sectionTitle"))
         self.optical_depth = QComboBox()
         self.optical_depth.setMinimumWidth(130)
-        self.optical_depth.addItem("Automatic", None)
         self.optical_depth.addItem("24-bit", "S32LE")
         self.optical_depth.addItem("16-bit", "S16LE")
         self.optical_depth.activated.connect(self._pick_optical_depth)
@@ -872,14 +871,13 @@ class PlaybackPage(Page):
     def _refresh_optical_depth(self):
         """The optical PCM's sample format, from its PipeWire config (hw:AE9,4)."""
         cur = pipewire.input_conf_format(self.optical_conf) if self.optical_conf else None
-        i = self.optical_depth.findData(cur)
+        i = self.optical_depth.findData(cur or "S32LE")
         self.optical_depth.setCurrentIndex(i if i >= 0 else 0)
         self.optical_depth.setEnabled(self.optical_conf is not None)
         self.optical_depth.setToolTip(
             "The optical PCM's sample format. 24-bit is what the card plays and what "
-            "S/PDIF carries at most; 16-bit opens the PCM at 16-bit (this card's S/PDIF "
-            "converter has no working 16-bit mode: measured silent); Automatic lets "
-            "PipeWire pick." if self.optical_conf else
+            "S/PDIF carries at most. 16-bit opens the PCM at 16-bit, for everything; "
+            "16-bit sources sound the same at 24-bit (widened, not changed)." if self.optical_conf else
             "No PipeWire config for hw:AE9,4: install the driver's ae9-optical-out.conf")
 
     def _make_optical_default(self):
