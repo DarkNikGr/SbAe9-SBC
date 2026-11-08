@@ -3,6 +3,18 @@
 Sound Blaster Command for Linux: the UI for the Creative Sound Blaster AE-9
 driver ([SbAe9-Drv](https://github.com/3xHelix/SbAe9-Drv)).
 
+## Unreleased
+
+### Added
+
+- **Optical output sample rate** (Playback → Digital): the separate optical
+  PCM can run at its own rate, `Automatic` (follows the card) or a fixed
+  44.1/48/88.2/96/176.4/192 kHz, set as `audio.rate` in its PipeWire config
+  (`hw:AE9,4`, `ae9-optical-out.conf`). It's independent of the main output:
+  the two can play at different rates at the same time, and streams at other
+  rates are resampled for the optical. Changing it restarts PipeWire, so
+  audio drops for a moment.
+
 ## 0.13.0 (2026-11-07)
 
 Panel widgets for KDE Plasma and GNOME with keyboard shortcuts, the head

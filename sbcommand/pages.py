@@ -692,6 +692,20 @@ class PlaybackPage(Page):
             "so SBX and the EQ aren't on it, and the volume knob doesn't change it — app "
             "volume does. Set the level on your receiver.", "hint", wrap=True))
         ob.addSpacing(6)
+        # the optical output's own rate: its PCM is separate from the main one, so
+        # it can run at a different rate (PipeWire resamples the other output)
+        orow_rate = QHBoxLayout()
+        orow_rate.addWidget(label("Sample rate", "sectionTitle"))
+        self.optical_rate = QComboBox()
+        self.optical_rate.setMinimumWidth(130)
+        self.optical_rate.addItem("Automatic", 0)
+        for r in OPTICAL_RATES:
+            self.optical_rate.addItem(f"{r / 1000:g} kHz", r)
+        self.optical_rate.activated.connect(self._pick_optical_rate)
+        orow_rate.addWidget(self.optical_rate)
+        orow_rate.addStretch()
+        ob.addLayout(orow_rate)
+        ob.addSpacing(6)
         ob.addWidget(label("Playback device", "sectionTitle"))
         orow2 = QHBoxLayout()
         self.optical_dev = label("—", "bigValue")
@@ -702,6 +716,7 @@ class PlaybackPage(Page):
         orow2.addStretch()
         orow2.addWidget(self.optical_default)
         ob.addLayout(orow2)
+        self.optical_conf = None
         self.optical_box.setVisible(False)
         digital.addWidget(self.optical_box)
         self.optical_missing = label("Optical out and in need driver v0.8.0 or newer.", "muted", wrap=True)
@@ -802,6 +817,31 @@ class PlaybackPage(Page):
         if n.sink:
             pipewire.set_default(n.sink["id"])
             self.ctx.pw.refresh()
+
+    def _pick_optical_rate(self, i):
+        rate = self.optical_rate.itemData(i)
+        path = self.optical_conf
+        if not path or rate == (pipewire.input_conf_rate(path) or 0):
+            return
+        ctx = getattr(self.window(), "ctx", None)
+        if ctx is None or not confirm_pipewire_restart(self.window(), "optical output"):
+            self._refresh_optical_rate()
+            return
+        ctx.set_input_rate("optical_out", path, rate, "Optical output")
+
+    def _refresh_optical_rate(self):
+        """The optical PCM's own rate, from its PipeWire config (hw:AE9,4)."""
+        self.optical_conf = pipewire.input_conf(4)
+        cur = pipewire.input_conf_rate(self.optical_conf) if self.optical_conf else None
+        i = self.optical_rate.findData(cur or 0)
+        self.optical_rate.setCurrentIndex(i if i >= 0 else 0)
+        self.optical_rate.setEnabled(self.optical_conf is not None)
+        self.optical_rate.setToolTip(
+            "Automatic follows the card's rate (Playback → Quality). A fixed rate opens "
+            "the optical output at that rate, on its own PCM: the main output keeps its "
+            "rate, and streams at other rates are resampled for the optical."
+            if self.optical_conf else
+            "No PipeWire config for hw:AE9,4: install the driver's ae9-optical-out.conf")
 
     def _make_optical_default(self):
         n = self.ctx.pw.nodes
@@ -1049,6 +1089,7 @@ class PlaybackPage(Page):
             self.optical_quality.setText(f"{rate / 1000:g} kHz · 24-bit · stereo")
         else:
             self.optical_quality.setText("Nothing playing")
+        self._refresh_optical_rate()
         self.optical_dev.setText("Sound Blaster AE-9 Optical" if n.optical_out
                                  else "Optical output not found in PipeWire")
         self.optical_default.setEnabled(bool(n.optical_out) and not n.optical_out_is_default)
@@ -1076,6 +1117,8 @@ OPTICAL_TIP = ("Optical (S/PDIF) out is a separate playback output on its own PC
                "volume does. Set the level on the receiver.")
 
 SURROUND_CFGS = ("4.0", "4.1", "5.1")
+# the optical PCM's rates (stereo up to 192 kHz; 384 kHz is the main output's only)
+OPTICAL_RATES = (44100, 48000, 88200, 96000, 176400, 192000)
 MIC_NAME = "AE-9 Head Unit Mic / Aux"
 
 

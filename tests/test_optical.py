@@ -226,3 +226,98 @@ class WhatUHearRateTest(S.AppTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+OPT_CONF = """# AE-9 optical out (copy of the driver's config)
+context.objects = [
+    { factory = adapter
+        args = {
+            factory.name     = api.alsa.pcm.sink
+            node.name        = "alsa_output.ae9_optical"
+            api.alsa.path    = "hw:AE9,4"
+            audio.format     = "S32LE"
+            audio.rate       = 96000
+            audio.channels   = 2
+        }
+    }
+]
+"""
+
+
+class OpticalOutRateTest(S.AppTestCase):
+    """The Digital tab's optical output has its own sample rate.
+
+    It's a separate PCM, so it can run at a rate of its own (audio.rate in its
+    PipeWire config); Automatic removes the line and follows the card."""
+
+    def setUp(self):
+        super().setUp()
+        self.mixer.add_bool(C.OPTICAL_OUT, True)
+        S.PW.add_optical_out(running=True)
+        os.makedirs(pipewire.PW_CONF_DIR, exist_ok=True)
+        self.path = os.path.join(pipewire.PW_CONF_DIR, "ae9-optical-out.conf")
+        with open(self.path, "w") as f:
+            f.write(OPT_CONF)
+        self.addCleanup(os.remove, self.path)
+        self.answer = True
+        old = pages.confirm_pipewire_restart
+        pages.confirm_pipewire_restart = lambda parent, what: self.answer
+        self.addCleanup(setattr, pages, "confirm_pipewire_restart", old)
+
+    def digital(self):
+        pg = self.page(pages.PlaybackPage)
+        pg.show_tab(2)
+        S.process(20)
+        pg.refresh()
+        return pg
+
+    def pick(self, pg, rate):
+        pg._pick_optical_rate(pg.optical_rate.findData(rate))
+        self.settle()
+
+    def test_shows_the_configs_rate(self):
+        pg = self.digital()
+        self.assertEqual(pg.optical_conf, self.path)
+        self.assertEqual(pg.optical_rate.itemText(0), "Automatic")
+        self.assertEqual(pg.optical_rate.currentData(), 96000)
+        self.assertTrue(pg.optical_rate.isEnabled())
+        self.assertEqual([pg.optical_rate.itemData(i) for i in range(1, pg.optical_rate.count())],
+                         list(pages.OPTICAL_RATES))
+
+    def test_fixed_rate_rewrites_audio_rate_and_restarts_pipewire(self):
+        pg = self.digital()
+        S.PW.calls.clear()
+        self.pick(pg, 48000)
+        with open(self.path) as f:
+            text = f.read()
+        self.assertIn("audio.rate       = 48000", text)
+        self.assertIn("copy of the driver's config", text)       # comments untouched
+        self.assertEqual(text.replace("= 48000\n", "= 96000\n", 1), OPT_CONF)
+        self.assertIn(("systemctl", "--user", "restart", "pipewire"), S.PW.calls)
+        self.assertEqual(pg.optical_rate.currentData(), 48000)
+
+    def test_automatic_removes_the_line(self):
+        pg = self.digital()
+        S.PW.calls.clear()
+        self.pick(pg, 0)
+        with open(self.path) as f:
+            text = f.read()
+        self.assertNotIn("audio.rate", text)
+        self.assertIn(("systemctl", "--user", "restart", "pipewire"), S.PW.calls)
+        self.assertEqual(pg.optical_rate.currentData(), 0)
+
+    def test_cancel_changes_nothing(self):
+        self.answer = False
+        pg = self.digital()
+        S.PW.calls.clear()
+        self.pick(pg, 48000)
+        self.assertEqual(pipewire.input_conf_rate(self.path), 96000)
+        self.assertNotIn(("systemctl", "--user", "restart", "pipewire"), S.PW.calls)
+        self.assertEqual(pg.optical_rate.currentData(), 96000)
+
+    def test_no_config_greys_it_out(self):
+        os.remove(self.path)
+        self.addCleanup(open(self.path, "w").close)
+        pg = self.digital()
+        self.assertFalse(pg.optical_rate.isEnabled())
+        self.assertIn("ae9-optical-out.conf", pg.optical_rate.toolTip())

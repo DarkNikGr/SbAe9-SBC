@@ -566,10 +566,14 @@ def input_conf_rate(path):
 
 def set_input_conf_rate(path, rate):
     """Set audio.rate in that config and restart PipeWire, which re-creates
-    the source: audio on every device drops for a moment."""
+    the node: audio on every device drops for a moment. rate 0 removes the
+    line (Automatic): the node then follows the graph's rate."""
     with open(path) as f:
         text = f.read()
-    new = _RATE_LINE.sub(lambda m: f"{m.group(1)}{int(rate)}", text, count=1)
+    if rate:
+        new = _RATE_LINE.sub(lambda m: f"{m.group(1)}{int(rate)}", text, count=1)
+    else:
+        new = re.sub(r"^\s*audio\.rate\s*=\s*\d+[ \t]*\n", "", text, count=1, flags=re.M)
     if new == text:
         return False
     tmp = path + ".new"
