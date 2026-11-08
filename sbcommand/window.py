@@ -218,6 +218,20 @@ class Context(QObject):
             lambda: pipewire.set_input_conf_rate(path, rate), 8000, settled,
             lambda: pipewire.input_conf_rate(path) != rate))
 
+    def set_input_format(self, key, path, fmt, title):
+        """The extra node's sample format (the optical output's bit depth): its
+        PipeWire config's audio.format, then a PipeWire restart."""
+
+        def settled():
+            n = self.pw.nodes
+            return getattr(n, key) is not None and self._sink_ok()
+
+        label = "automatic" if not fmt else ("16-bit" if fmt == "S16LE" else "24-bit")
+        self.applier.submit(Change(
+            key + "_format", f"{title} bit depth: {label}",
+            lambda: pipewire.set_input_conf_format(path, fmt), 8000, settled,
+            lambda: pipewire.input_conf_format(path) != fmt))
+
     def set_capture_depth(self, k):
         items = self.card.items(C.CAP_BIT_DEPTH)
         name = items[k] if 0 <= k < len(items) else str(k)

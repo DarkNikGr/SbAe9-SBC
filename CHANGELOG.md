@@ -14,6 +14,10 @@ driver ([SbAe9-Drv](https://github.com/3xHelix/SbAe9-Drv)).
   the two can play at different rates at the same time, and streams at other
   rates are resampled for the optical. Changing it restarts PipeWire, so
   audio drops for a moment.
+- **Optical output bit depth** (Digital tab): Automatic, 24-bit or 16-bit,
+  as `audio.format` in the same config. 24-bit is what the card plays and
+  what S/PDIF carries at most; this card's S/PDIF converter has no working
+  16-bit mode (measured silent), so 16-bit is only for other setups.
 
 ## 0.13.0 (2026-11-07)
 

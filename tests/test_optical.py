@@ -321,3 +321,40 @@ class OpticalOutRateTest(S.AppTestCase):
         pg = self.digital()
         self.assertFalse(pg.optical_rate.isEnabled())
         self.assertIn("ae9-optical-out.conf", pg.optical_rate.toolTip())
+        self.assertFalse(pg.optical_depth.isEnabled())
+        self.assertIn("ae9-optical-out.conf", pg.optical_depth.toolTip())
+
+    # -- bit depth ---------------------------------------------------------
+
+    def depth(self, pg, fmt):
+        pg._pick_optical_depth(pg.optical_depth.findData(fmt))
+        self.settle()
+
+    def test_depth_shows_the_configs_format(self):
+        pg = self.digital()
+        self.assertEqual(pg.optical_depth.itemText(0), "Automatic")
+        self.assertEqual([pg.optical_depth.itemData(i) for i in range(pg.optical_depth.count())],
+                         [None, "S32LE", "S16LE"])
+        self.assertEqual(pg.optical_depth.currentData(), "S32LE")      # 24-bit
+        self.assertTrue(pg.optical_depth.isEnabled())
+        self.assertIn("16-bit", pg.optical_depth.toolTip())
+
+    def test_16bit_writes_s16le(self):
+        pg = self.digital()
+        S.PW.calls.clear()
+        self.depth(pg, "S16LE")
+        with open(self.path) as f:
+            text = f.read()
+        self.assertIn('audio.format     = "S16LE"', text)
+        self.assertEqual(text.replace("S16LE", "S32LE", 1), OPT_CONF)
+        self.assertIn(("systemctl", "--user", "restart", "pipewire"), S.PW.calls)
+        self.assertEqual(pg.optical_depth.currentData(), "S16LE")
+
+    def test_automatic_depth_removes_the_line(self):
+        pg = self.digital()
+        self.depth(pg, None)
+        with open(self.path) as f:
+            text = f.read()
+        self.assertNotIn("audio.format", text)
+        self.assertEqual(pg.optical_depth.currentData(), None)
+        self.assertIn("audio.rate       = 96000", text)                # the rate stays

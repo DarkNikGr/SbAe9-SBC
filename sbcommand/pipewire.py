@@ -532,6 +532,7 @@ def set_mic_rate(source_name, rate):
 # whose audio.rate fixes the rate they record at. The driver's README says to
 # change that line for 96 kHz, so the app does just that and restarts PipeWire.
 _RATE_LINE = re.compile(r"^(\s*audio\.rate\s*=\s*)(\d+)", re.M)
+_FORMAT_LINE = re.compile(r'^(\s*audio\.format\s*=\s*)"([^"]*)"', re.M)
 
 
 def input_conf(device, card_id="AE9"):
@@ -562,6 +563,35 @@ def input_conf_rate(path):
     except (OSError, TypeError):
         return None
     return int(m.group(2)) if m else None
+
+
+def input_conf_format(path):
+    """The sample format set in that config (audio.format, e.g. S32LE), or None."""
+    try:
+        with open(path) as f:
+            m = _FORMAT_LINE.search(f.read())
+    except (OSError, TypeError):
+        return None
+    return m.group(2) if m else None
+
+
+def set_input_conf_format(path, fmt):
+    """Set audio.format in that config and restart PipeWire (fmt None/"" removes
+    the line: PipeWire negotiates it). Audio drops for a moment."""
+    with open(path) as f:
+        text = f.read()
+    if fmt:
+        new = _FORMAT_LINE.sub(lambda m: f'{m.group(1)}"{fmt}"', text, count=1)
+    else:
+        new = re.sub(r'^\s*audio\.format\s*=\s*"[^"]*"[ \t]*\n', "", text, count=1, flags=re.M)
+    if new == text:
+        return False
+    tmp = path + ".new"
+    with open(tmp, "w") as f:
+        f.write(new)
+    os.replace(tmp, path)
+    _run("systemctl", "--user", "restart", "pipewire", timeout=15)
+    return True
 
 
 def set_input_conf_rate(path, rate):

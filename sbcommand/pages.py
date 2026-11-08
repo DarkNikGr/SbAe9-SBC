@@ -705,6 +705,19 @@ class PlaybackPage(Page):
         orow_rate.addWidget(self.optical_rate)
         orow_rate.addStretch()
         ob.addLayout(orow_rate)
+        # bit depth: 24-bit is what S/PDIF carries and what the card plays;
+        # Automatic lets PipeWire pick, 16-bit is there for other converters
+        orow_depth = QHBoxLayout()
+        orow_depth.addWidget(label("Bit depth", "sectionTitle"))
+        self.optical_depth = QComboBox()
+        self.optical_depth.setMinimumWidth(130)
+        self.optical_depth.addItem("Automatic", None)
+        self.optical_depth.addItem("24-bit", "S32LE")
+        self.optical_depth.addItem("16-bit", "S16LE")
+        self.optical_depth.activated.connect(self._pick_optical_depth)
+        orow_depth.addWidget(self.optical_depth)
+        orow_depth.addStretch()
+        ob.addLayout(orow_depth)
         ob.addSpacing(6)
         ob.addWidget(label("Playback device", "sectionTitle"))
         orow2 = QHBoxLayout()
@@ -841,6 +854,30 @@ class PlaybackPage(Page):
             "the optical output at that rate, on its own PCM: the main output keeps its "
             "rate, and streams at other rates are resampled for the optical."
             if self.optical_conf else
+            "No PipeWire config for hw:AE9,4: install the driver's ae9-optical-out.conf")
+
+    def _pick_optical_depth(self, i):
+        fmt = self.optical_depth.itemData(i)
+        path = self.optical_conf
+        if not path or fmt == pipewire.input_conf_format(path):
+            return
+        ctx = getattr(self.window(), "ctx", None)
+        if ctx is None or not confirm_pipewire_restart(self.window(), "optical output"):
+            self._refresh_optical_depth()
+            return
+        ctx.set_input_format("optical_out", path, fmt, "Optical output")
+
+    def _refresh_optical_depth(self):
+        """The optical PCM's sample format, from its PipeWire config (hw:AE9,4)."""
+        cur = pipewire.input_conf_format(self.optical_conf) if self.optical_conf else None
+        i = self.optical_depth.findData(cur)
+        self.optical_depth.setCurrentIndex(i if i >= 0 else 0)
+        self.optical_depth.setEnabled(self.optical_conf is not None)
+        self.optical_depth.setToolTip(
+            "The optical PCM's sample format. 24-bit is what the card plays and what "
+            "S/PDIF carries at most; 16-bit opens the PCM at 16-bit (this card's S/PDIF "
+            "converter has no working 16-bit mode: measured silent); Automatic lets "
+            "PipeWire pick." if self.optical_conf else
             "No PipeWire config for hw:AE9,4: install the driver's ae9-optical-out.conf")
 
     def _make_optical_default(self):
@@ -1085,11 +1122,13 @@ class PlaybackPage(Page):
         self.optical_lbl.setText("On" if on else "Off")
         fmt = n.optical_out_format()
         if n.optical_out and n.optical_out.get("state") == "running" and fmt:
-            rate, _ = fmt
-            self.optical_quality.setText(f"{rate / 1000:g} kHz · 24-bit · stereo")
+            rate, sample = fmt
+            bits = 16 if str(sample or "").upper().startswith("S16") else 24
+            self.optical_quality.setText(f"{rate / 1000:g} kHz · {bits}-bit · stereo")
         else:
             self.optical_quality.setText("Nothing playing")
         self._refresh_optical_rate()
+        self._refresh_optical_depth()
         self.optical_dev.setText("Sound Blaster AE-9 Optical" if n.optical_out
                                  else "Optical output not found in PipeWire")
         self.optical_default.setEnabled(bool(n.optical_out) and not n.optical_out_is_default)
@@ -1114,7 +1153,10 @@ OPTICAL_TIP = ("Optical (S/PDIF) out is a separate playback output on its own PC
                "as the playback device to send audio to a receiver or another device.\n\n"
                "It carries a stereo, 24-bit stream at 44.1–192 kHz, straight from the source: "
                "no SBX or EQ, and the card's Master volume (and knob) doesn't change it — app "
-               "volume does. Set the level on the receiver.")
+               "volume does. Set the level on the receiver.\n\n"
+               "Bit depth is fixed at 24-bit: S/PDIF carries at most 24 bits per sample, and "
+               "this card's S/PDIF converter has no working 16-bit mode (measured: 16-bit is "
+               "silent). The main output still offers 24 or 32-bit.")
 
 SURROUND_CFGS = ("4.0", "4.1", "5.1")
 # the optical PCM's rates (stereo up to 192 kHz; 384 kHz is the main output's only)
