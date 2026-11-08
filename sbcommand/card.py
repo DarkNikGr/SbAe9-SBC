@@ -21,6 +21,15 @@ MASTER = "Master Playback Volume"      # 0..254, 0.5 dB steps, -127..0 dB
 MASTER_SW = "Master Playback Switch"
 MIC = "Capture Volume"                 # 0..99, -90 + v dB, 0 = mute
 MIC_GAIN = "Mic Gain Capture Volume"   # 0/1/2 = 0/+10/+20 dB, head unit XLR/TRS + 3.5 mm mic jack
+# CrystalVoice: the DSP's mic input effects (driver module 0x95)
+CRYSTALVOICE = "CrystalVoice Switch"                  # master; gates every input effect
+CV_NR = "CrystalVoice Noise Reduction Switch"
+CV_NR_VOL = "CrystalVoice Noise Reduction Volume"      # 0..100
+CV_EC = "CrystalVoice Echo Cancellation Switch"
+CV_VF = "CrystalVoice Voice Focus Switch"
+CV_SVM = "CrystalVoice Mic SVM Switch"
+CV_SVM_VOL = "CrystalVoice Mic SVM Volume"             # 0..100
+CV_VFX = "CrystalVoice VoiceFX Switch"
 DAC_FILTER = "DAC Filter"              # Default / Fast / Slow
 DIRECT = "Direct Mode Switch"
 SBX = "SBX Switch"

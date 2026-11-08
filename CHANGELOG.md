@@ -7,6 +7,12 @@ driver ([SbAe9-Drv](https://github.com/3xHelix/SbAe9-Drv)).
 
 ### Added
 
+- **CrystalVoice** (Recording → Microphone): the card DSP's mic input effects
+  as switches and levels, on driver 0.10.1 + input effects: Noise Reduction
+  (with level), Echo Cancellation, Voice Focus, Mic Smart Volume (with level)
+  and VoiceFX, gated by the CrystalVoice master switch. They're input effects,
+  separate from SBX and independent of Direct Mode.
+
 - **Optical output sample rate** (Playback → Digital): the separate optical
   PCM has its own rate, 44.1/48/88.2/96/176.4/192 kHz, set as `audio.rate`
   in its PipeWire config (`hw:AE9,4`, `ae9-optical-out.conf`). It's

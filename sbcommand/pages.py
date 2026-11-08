@@ -1145,6 +1145,12 @@ DIRECT_TIP = ("Direct Mode sends audio straight to the ESS DAC at the stream's o
 DIRECT_PAUSE_TIP = ("\n\nSwitching Direct Mode on during playback goes silent until the stream "
                     "restarts (pause and play), same as on Windows.")
 
+CRYSTALVOICE_TIP = ("The card's DSP mic processing: Noise Reduction, Echo Cancellation, Voice "
+                    "Focus, Mic Smart Volume and VoiceFX. The CrystalVoice switch gates them "
+                    "all (Windows' default: Noise Reduction on).\n\n"
+                    "These are input effects, separate from SBX: they act on the mic whatever "
+                    "Direct Mode is set to. Needs driver 0.10.1 + input effects (module 0x95).")
+
 OPTICAL_TIP = ("Optical (S/PDIF) out is a separate playback output on its own PCM. Pick it "
                "as the playback device to send audio to a receiver or another device.\n\n"
                "It carries a stereo, 24-bit stream at 44.1–192 kHz, straight from the source: "
@@ -1731,6 +1737,52 @@ class RecordingPage(Page):
         self.mic_jack.setVisible(False)
         self.lay.addWidget(self.mic_jack)
 
+        # CrystalVoice: the DSP's mic input effects (driver module 0x95)
+        self.cv_box = QWidget()
+        cvb = QVBoxLayout(self.cv_box)
+        cvb.setContentsMargins(0, 10, 0, 0)
+        cvb.setSpacing(8)
+        ch = QHBoxLayout()
+        ch.addWidget(label("CrystalVoice (mic effects)", "subTitle"))
+        ch.addWidget(info_button(CRYSTALVOICE_TIP))
+        ch.addStretch()
+        self.cv = ToggleSwitch()
+        self.cv.toggled.connect(lambda on: self.card.set(C.CRYSTALVOICE, on))
+        self.cv_lbl = label("", "muted")
+        ch.addWidget(self.cv)
+        ch.addWidget(self.cv_lbl)
+        cvb.addLayout(ch)
+        self.cv_switches, self.cv_sliders = {}, {}
+        self.cv_rows = (
+            ("nr", "Noise Reduction", C.CV_NR, C.CV_NR_VOL),
+            ("ec", "Echo Cancellation", C.CV_EC, None),
+            ("vf", "Voice Focus", C.CV_VF, None),
+            ("svm", "Mic Smart Volume", C.CV_SVM, C.CV_SVM_VOL),
+            ("vfx", "VoiceFX", C.CV_VFX, None),
+        )
+        cg = QGridLayout()
+        cg.setHorizontalSpacing(18)
+        cg.setVerticalSpacing(8)
+        for r, (key, title, sw, vol) in enumerate(self.cv_rows):
+            tg = ToggleSwitch()
+            tg.toggled.connect(lambda on, name=sw: self.card.set(name, on))
+            self.cv_switches[key] = tg
+            cg.addWidget(tg, r, 0)
+            cg.addWidget(label(title, "muted"), r, 1)
+            if vol:
+                sl = QSlider(Qt.Horizontal)
+                sl.setRange(0, 100)
+                sl.setMinimumWidth(150)
+                val = label("", "muted")
+                val.setMinimumWidth(40)
+                sl.valueChanged.connect(lambda v, name=vol, val=val: self._cv_volume(name, v, val))
+                self.cv_sliders[key] = (sl, val)
+                cg.addWidget(sl, r, 2)
+                cg.addWidget(val, r, 3)
+        cg.setColumnStretch(2, 1)
+        cvb.addLayout(cg)
+        self.lay.addWidget(self.cv_box)
+
         self.lay.addStretch()
 
         # extra inputs: each its own device, recording alongside the mic
@@ -1763,6 +1815,28 @@ class RecordingPage(Page):
         ctx.meter.levels.connect(self._levels)
         ctx.monitor.state.connect(self.listen.setCheckedSilently)
         ctx.pw.updated.connect(self._on_pw)
+
+    def _cv_volume(self, name, value, lbl):
+        lbl.setText(f"{value}%")
+        self.card.set(name, value)
+
+    def _refresh_crystalvoice(self):
+        has = self.card.has(C.CRYSTALVOICE)
+        self.cv_box.setVisible(has)
+        if not has:
+            return
+        on = bool(self.card.get(C.CRYSTALVOICE))
+        self.cv.setCheckedSilently(on)
+        self.cv_lbl.setText("On" if on else "Off")
+        for key, _title, sw, vol in self.cv_rows:
+            self.cv_switches[key].setCheckedSilently(bool(self.card.get(sw)))
+            if vol and key in self.cv_sliders:
+                sl, val = self.cv_sliders[key]
+                v = int(self.card.get(vol) or 0)
+                sl.blockSignals(True)
+                sl.setValue(v)
+                sl.blockSignals(False)
+                val.setText(f"{v}%")
 
     def _make_default(self):
         n = self.ctx.pw.nodes
@@ -1975,6 +2049,7 @@ class RecordingPage(Page):
         if not self.card.present:
             return
         self._refresh_phantom()
+        self._refresh_crystalvoice()
         self.mic_jack.setVisible(self.card.has(C.HU_MIC))
         if self.card.has(C.HU_MIC):
             self.mic_jack.setText("3.5 mm mic: " + (
